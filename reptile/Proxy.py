@@ -1,36 +1,15 @@
 # -*- coding: utf-8 -*-
-# @Time    : 2019-09-25 16:40
+# @Time    : 2020-03-24 11:43
 # @Author  : ken
 '''
-构建自己的代理池
-1.扩充代理源.
-2.所有参数写死,不依赖外部脚本参数.
+
 '''
 import time
 import threading
 import requests
 from bs4 import BeautifulSoup
-from basic.utils.config import *
-from fastapi import FastAPI
 from robobrowser import RoboBrowser
-
-
-class RedisObject:
-    _instance_lock = threading.Lock()
-
-    def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, "_instance"):
-            with cls._instance_lock:
-                if not hasattr(cls, "_instance"):
-                    cls._instance = object.__new__(cls)
-        return cls._instance
-
-    def get_connection(self):
-        '''获取redis连接'''
-        redis_host, redis_pass, redis_port, redis_db = '192.168.1.233', 'yMxsueZD9yx0AkfR', '6543', '3'
-        pool = redis.ConnectionPool(host=redis_host, password=redis_pass, port=redis_port, db=redis_db, socket_timeout=5, max_connections=469)
-        conn = redis.StrictRedis(connection_pool=pool, decode_responses=True)
-        return conn
+from storage.RedisObject import RedisObject
 
 
 class Proxy:
@@ -149,6 +128,7 @@ class Proxy:
             port = td[1].get_text().strip()
             self._format_ip({'http': f'http://{host}:{port}'})
 
+    @classmethod
     def start(self):
         while 1:
             self.quanwang_dai_li()
@@ -193,30 +173,6 @@ class Proxy:
             print(f'此次请求使用代理: None')
             return data
 
-    def sort_ip(self):
-        '''清理失效ip;单独开启一个线程'''
-        name = 'proxypool'
-        while 1:
-            ips = self.conn.smembers(name)  # 返回集合
-            for ip in ips:
-                try:
-                    ip = ip.decode('utf-8')
-                    url = 'https://www.kuaidaili.com/'
-                    headers = {
-                        'User-Agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.132 Safari/537.36",
-                        'Connection': 'close'
-                    }
-                    data = requests.get(url, proxies=eval(ip), headers=headers, timeout=15)
-                    print(data.status_code, ip)
-                    if data.status_code == 200: continue
-                    self.conn.srem(name, ip)
-                    print(f'删除无效ip: {ip}')
-                except:
-                    self.conn.srem(name, ip)
-                    print(f'删除无效ip: {ip}')
-            print(f'休息5s..')
-            time.sleep(5)
-
     def get_proxy(self):
         '''
         获取代理ip
@@ -228,25 +184,5 @@ class Proxy:
         return eval(ip)
 
 
-app = FastAPI()
-
-p = Proxy()
-
-
-@app.get("/")
-def get_ip():
-    return p.get_proxy()
-
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-
-if __name__ == '__main__':
-    '''爬取代理'''
-    # t2 = threading.Thread(target=Proxy().start())
-    # t2.start()
-    '''效验代理'''
-    t1 = threading.Thread(target=Proxy().sort_ip)
-    t1.start()
+if __name__ == "__main__":
+    Proxy.start()
